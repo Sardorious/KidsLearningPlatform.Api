@@ -1,0 +1,50 @@
+@KidsLearningPlatform.Api_HostAddress = http://localhost:5163
+
+### Auth
+POST {{KidsLearningPlatform.Api_HostAddress}}/api/auth/register
+Content-Type: application/json
+
+{
+  "name": "Admin User",
+  "phoneNumber": "+998901234567",
+  "email": "admin@example.com",
+  "password": "Password123!",
+  "role": 3
+}
+
+###
+# @name login
+POST {{KidsLearningPlatform.Api_HostAddress}}/api/auth/login
+Content-Type: application/json
+
+{
+  "phoneNumber": "+998901234567",
+  "password": "Password123!"
+}
+
+###
+@token = {{login.response.body.token}}
+
+### Admin Courses
+POST {{KidsLearningPlatform.Api_HostAddress}}/api/admin/courses
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "title": "Introduction to Programming",
+  "description": "Learn the basics of coding with C#.",
+  "category": "Technology",
+  "price": 49.99,
+  "imageUrl": "https://example.com/course1.jpg"
+}
+
+### Public Courses
+GET {{KidsLearningPlatform.Api_HostAddress}}/api/courses
+
+### User Profile
+GET {{KidsLearningPlatform.Api_HostAddress}}/api/users/me
+Authorization: Bearer {{token}}
+
+### User Progress
+GET {{KidsLearningPlatform.Api_HostAddress}}/api/progress
+Authorization: Bearer {{token}}
