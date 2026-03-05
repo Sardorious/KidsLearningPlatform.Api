@@ -226,3 +226,4 @@ c:\KidsLearning\KidsLearningPlatform.Api-main\obj\Debug\net8.0\refint\KidsLearni
 c:\KidsLearning\KidsLearningPlatform.Api-main\obj\Debug\net8.0\KidsLearningPlatform.Api.pdb
 c:\KidsLearning\KidsLearningPlatform.Api-main\obj\Debug\net8.0\KidsLearningPlatform.Api.genruntimeconfig.cache
 c:\KidsLearning\KidsLearningPlatform.Api-main\obj\Debug\net8.0\ref\KidsLearningPlatform.Api.dll
+c:\KidsLearning\KidsLearningPlatform.Api-main\obj\Debug\net8.0\KidsLearningPlatform.Api.sourcelink.json

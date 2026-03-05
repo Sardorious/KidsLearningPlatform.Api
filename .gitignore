@@ -1,0 +1,11 @@
+bin/
+obj/
+*.user
+*.userosscache
+*.sln.doccache
+.vs/
+.idea/
+.vscode/
+appsettings.Development.json
+wwwroot/uploads/*
+!wwwroot/uploads/.gitkeep

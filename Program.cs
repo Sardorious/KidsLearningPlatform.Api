@@ -17,6 +17,8 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<ICourseService, CourseService>();
 builder.Services.AddScoped<ILessonService, LessonService>();
 builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddScoped<IClassService, ClassService>();
+builder.Services.AddScoped<IMaterialService, MaterialService>();
 
 var jwtSecret = builder.Configuration["Jwt:Secret"] ?? "super_secret_key_that_should_be_long_enough_for_hmac_sha256";
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -43,7 +45,7 @@ builder.Services.AddCors(options =>
     options.AddPolicy("AllowFrontend",
         policy =>
         {
-            policy.WithOrigins("http://localhost:5173")
+            policy.WithOrigins("http://localhost:5173", "http://localhost:5174", "http://localhost:5175", "http://localhost:5176")
                   .AllowAnyHeader()
                   .AllowAnyMethod();
         });
@@ -89,6 +91,8 @@ app.MapCourseEndpoints();
 app.MapLessonEndpoints();
 app.MapUserEndpoints();
 app.MapFileEndpoints();
+app.MapClassEndpoints();
+app.MapMaterialEndpoints();
 
 var summaries = new[]
 {

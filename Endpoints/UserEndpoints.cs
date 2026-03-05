@@ -1,6 +1,7 @@
 namespace KidsLearningPlatform.Api.Endpoints;
 
 using KidsLearningPlatform.Api.DTOs.Users;
+using KidsLearningPlatform.Api.DTOs.Auth;
 using KidsLearningPlatform.Api.Services;
 using System.Security.Claims;
 
@@ -16,7 +17,15 @@ public static class UserEndpoints
         {
             var users = await userService.GetAllUsersAsync();
             return Results.Ok(users);
-        }).RequireAuthorization(); // Optionally restrict to admin roles here -> [Authorize(Roles = "Admin")]
+        }).RequireAuthorization(p => p.RequireRole("ADMIN"));
+
+        // Create User (Admin)
+        group.MapPost("/", async (RegisterRequest request, IAuthService authService) =>
+        {
+            var result = await authService.RegisterAsync(request);
+            if (result == null) return Results.BadRequest("User with this phone number already exists.");
+            return Results.Ok(result);
+        }).RequireAuthorization(p => p.RequireRole("ADMIN"));
 
         // User Profile
         group.MapGet("/me", async (IUserService userService, ClaimsPrincipal user) =>

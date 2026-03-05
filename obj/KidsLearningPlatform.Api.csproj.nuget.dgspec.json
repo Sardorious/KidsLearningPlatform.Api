@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "c:\\KidsLearning\\KidsLearningPlatform.Api-main\\KidsLearningPlatform.Api.csproj": {}
+    "C:\\KidsLearning\\KidsLearningPlatform.Api-main\\KidsLearningPlatform.Api.csproj": {}
   },
   "projects": {
-    "c:\\KidsLearning\\KidsLearningPlatform.Api-main\\KidsLearningPlatform.Api.csproj": {
+    "C:\\KidsLearning\\KidsLearningPlatform.Api-main\\KidsLearningPlatform.Api.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "c:\\KidsLearning\\KidsLearningPlatform.Api-main\\KidsLearningPlatform.Api.csproj",
+        "projectUniqueName": "C:\\KidsLearning\\KidsLearningPlatform.Api-main\\KidsLearningPlatform.Api.csproj",
         "projectName": "KidsLearningPlatform.Api",
-        "projectPath": "c:\\KidsLearning\\KidsLearningPlatform.Api-main\\KidsLearningPlatform.Api.csproj",
+        "projectPath": "C:\\KidsLearning\\KidsLearningPlatform.Api-main\\KidsLearningPlatform.Api.csproj",
         "packagesPath": "C:\\Users\\Hp\\.nuget\\packages\\",
-        "outputPath": "c:\\KidsLearning\\KidsLearningPlatform.Api-main\\obj\\",
+        "outputPath": "C:\\KidsLearning\\KidsLearningPlatform.Api-main\\obj\\",
         "projectStyle": "PackageReference",
         "configFilePaths": [
           "C:\\Users\\Hp\\AppData\\Roaming\\NuGet\\NuGet.Config"

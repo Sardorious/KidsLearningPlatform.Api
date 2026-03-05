@@ -11,6 +11,8 @@ public class AppDbContext : DbContext
     public DbSet<Course> Courses { get; set; }
     public DbSet<Lesson> Lessons { get; set; }
     public DbSet<Progress> Progresses { get; set; }
+    public DbSet<Class> Classes { get; set; }
+    public DbSet<Material> Materials { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
