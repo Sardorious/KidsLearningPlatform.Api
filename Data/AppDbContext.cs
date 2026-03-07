@@ -30,5 +30,12 @@ public class AppDbContext : DbContext
             .WithMany(u => u.UserProgress)
             .HasForeignKey(p => p.StudentId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        // Material → Course relationship
+        modelBuilder.Entity<Material>()
+            .HasOne(m => m.Course)
+            .WithMany()
+            .HasForeignKey(m => m.CourseId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }
