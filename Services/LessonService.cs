@@ -23,20 +23,23 @@ public class LessonService : ILessonService
         _context = context;
     }
 
+    private static LessonDto MapToDto(Lesson lesson) => new LessonDto
+    {
+        Id = lesson.Id,
+        Title = lesson.Title,
+        Content = lesson.Content,
+        VideoUrl = lesson.VideoUrl,
+        Type = lesson.Type ?? "video",
+        ContentUrl = lesson.ContentUrl ?? lesson.VideoUrl ?? string.Empty,
+        OrderIndex = lesson.OrderIndex,
+        CourseId = lesson.CourseId
+    };
+
     public async Task<LessonDto?> GetLessonByIdAsync(int id)
     {
         var lesson = await _context.Lessons.FirstOrDefaultAsync(l => l.Id == id);
         if (lesson == null) return null;
-
-        return new LessonDto
-        {
-            Id = lesson.Id,
-            Title = lesson.Title,
-            Content = lesson.Content,
-            VideoUrl = lesson.VideoUrl,
-            OrderIndex = lesson.OrderIndex,
-            CourseId = lesson.CourseId
-        };
+        return MapToDto(lesson);
     }
 
     public async Task<IEnumerable<LessonDto>> GetLessonsByCourseIdAsync(int courseId)
@@ -50,6 +53,8 @@ public class LessonService : ILessonService
                 Title = l.Title,
                 Content = l.Content,
                 VideoUrl = l.VideoUrl,
+                Type = l.Type ?? "video",
+                ContentUrl = l.ContentUrl ?? l.VideoUrl ?? string.Empty,
                 OrderIndex = l.OrderIndex,
                 CourseId = l.CourseId
             })
@@ -66,6 +71,8 @@ public class LessonService : ILessonService
             Title = request.Title,
             Content = request.Content,
             VideoUrl = request.VideoUrl,
+            Type = request.Type ?? "video",
+            ContentUrl = request.ContentUrl ?? request.VideoUrl,
             OrderIndex = request.OrderIndex,
             CourseId = request.CourseId
         };
@@ -73,15 +80,7 @@ public class LessonService : ILessonService
         _context.Lessons.Add(lesson);
         await _context.SaveChangesAsync();
 
-        return new LessonDto
-        {
-            Id = lesson.Id,
-            Title = lesson.Title,
-            Content = lesson.Content,
-            VideoUrl = lesson.VideoUrl,
-            OrderIndex = lesson.OrderIndex,
-            CourseId = lesson.CourseId
-        };
+        return MapToDto(lesson);
     }
 
     public async Task<LessonDto?> UpdateLessonAsync(int id, UpdateLessonRequest request)
@@ -92,19 +91,13 @@ public class LessonService : ILessonService
         lesson.Title = request.Title;
         lesson.Content = request.Content;
         lesson.VideoUrl = request.VideoUrl;
+        lesson.Type = string.IsNullOrEmpty(request.Type) ? (lesson.Type ?? "video") : request.Type;
+        lesson.ContentUrl = string.IsNullOrEmpty(request.ContentUrl) ? (lesson.ContentUrl ?? request.VideoUrl) : request.ContentUrl;
         lesson.OrderIndex = request.OrderIndex;
 
         await _context.SaveChangesAsync();
 
-        return new LessonDto
-        {
-            Id = lesson.Id,
-            Title = lesson.Title,
-            Content = lesson.Content,
-            VideoUrl = lesson.VideoUrl,
-            OrderIndex = lesson.OrderIndex,
-            CourseId = lesson.CourseId
-        };
+        return MapToDto(lesson);
     }
 
     public async Task<bool> DeleteLessonAsync(int id)
