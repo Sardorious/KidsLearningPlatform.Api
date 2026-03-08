@@ -16,9 +16,11 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<ICourseService, CourseService>();
 builder.Services.AddScoped<ILessonService, LessonService>();
+builder.Services.AddScoped<ILessonQuestionService, LessonQuestionService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IClassService, ClassService>();
 builder.Services.AddScoped<IMaterialService, MaterialService>();
+
 
 var jwtSecret = builder.Configuration["Jwt:Secret"] ?? "super_secret_key_that_should_be_long_enough_for_hmac_sha256";
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -89,10 +91,12 @@ app.UseAuthorization();
 app.MapAuthEndpoints();
 app.MapCourseEndpoints();
 app.MapLessonEndpoints();
+app.MapLessonQuestionEndpoints();
 app.MapUserEndpoints();
 app.MapFileEndpoints();
 app.MapClassEndpoints();
 app.MapMaterialEndpoints();
+
 
 var summaries = new[]
 {

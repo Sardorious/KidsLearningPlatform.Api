@@ -10,6 +10,7 @@ public class AppDbContext : DbContext
     public DbSet<User> Users { get; set; }
     public DbSet<Course> Courses { get; set; }
     public DbSet<Lesson> Lessons { get; set; }
+    public DbSet<LessonQuestion> LessonQuestions { get; set; }
     public DbSet<Progress> Progresses { get; set; }
     public DbSet<Class> Classes { get; set; }
     public DbSet<Material> Materials { get; set; }
@@ -36,6 +37,13 @@ public class AppDbContext : DbContext
             .HasOne(m => m.Course)
             .WithMany()
             .HasForeignKey(m => m.CourseId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // LessonQuestion → Lesson relationship (cascade delete)
+        modelBuilder.Entity<LessonQuestion>()
+            .HasOne(q => q.Lesson)
+            .WithMany()
+            .HasForeignKey(q => q.LessonId)
             .OnDelete(DeleteBehavior.Cascade);
     }
 }
