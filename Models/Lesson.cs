@@ -8,6 +8,7 @@ public class Lesson
     public string VideoUrl { get; set; }
     public string Type { get; set; } = "video";
     public string ContentUrl { get; set; }
+    public string Duration { get; set; } = string.Empty;
     public int OrderIndex { get; set; }
 
     public int CourseId { get; set; }

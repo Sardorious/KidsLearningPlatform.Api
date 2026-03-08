@@ -8,6 +8,7 @@ public class LessonDto
     public string VideoUrl { get; set; } = string.Empty;
     public string Type { get; set; } = "video";
     public string ContentUrl { get; set; } = string.Empty;
+    public string Duration { get; set; } = string.Empty;
     public int OrderIndex { get; set; }
     public int CourseId { get; set; }
 }
@@ -19,6 +20,7 @@ public class CreateLessonRequest
     public string VideoUrl { get; set; } = string.Empty;
     public string Type { get; set; } = "video";
     public string ContentUrl { get; set; } = string.Empty;
+    public string Duration { get; set; } = string.Empty;
     public int OrderIndex { get; set; }
     public int CourseId { get; set; }
 }
@@ -30,5 +32,6 @@ public class UpdateLessonRequest
     public string VideoUrl { get; set; } = string.Empty;
     public string Type { get; set; } = "video";
     public string ContentUrl { get; set; } = string.Empty;
+    public string Duration { get; set; } = string.Empty;
     public int OrderIndex { get; set; }
 }

@@ -31,6 +31,7 @@ public class LessonService : ILessonService
         VideoUrl = lesson.VideoUrl,
         Type = lesson.Type ?? "video",
         ContentUrl = lesson.ContentUrl ?? lesson.VideoUrl ?? string.Empty,
+        Duration = lesson.Duration ?? string.Empty,
         OrderIndex = lesson.OrderIndex,
         CourseId = lesson.CourseId
     };
@@ -55,6 +56,7 @@ public class LessonService : ILessonService
                 VideoUrl = l.VideoUrl,
                 Type = l.Type ?? "video",
                 ContentUrl = l.ContentUrl ?? l.VideoUrl ?? string.Empty,
+                Duration = l.Duration ?? string.Empty,
                 OrderIndex = l.OrderIndex,
                 CourseId = l.CourseId
             })
@@ -73,6 +75,7 @@ public class LessonService : ILessonService
             VideoUrl = request.VideoUrl,
             Type = request.Type ?? "video",
             ContentUrl = request.ContentUrl ?? request.VideoUrl,
+            Duration = request.Duration ?? string.Empty,
             OrderIndex = request.OrderIndex,
             CourseId = request.CourseId
         };
@@ -93,6 +96,7 @@ public class LessonService : ILessonService
         lesson.VideoUrl = request.VideoUrl;
         lesson.Type = string.IsNullOrEmpty(request.Type) ? (lesson.Type ?? "video") : request.Type;
         lesson.ContentUrl = string.IsNullOrEmpty(request.ContentUrl) ? (lesson.ContentUrl ?? request.VideoUrl) : request.ContentUrl;
+        lesson.Duration = request.Duration ?? lesson.Duration ?? string.Empty;
         lesson.OrderIndex = request.OrderIndex;
 
         await _context.SaveChangesAsync();
