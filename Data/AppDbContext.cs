@@ -14,6 +14,7 @@ public class AppDbContext : DbContext
     public DbSet<Progress> Progresses { get; set; }
     public DbSet<Class> Classes { get; set; }
     public DbSet<Material> Materials { get; set; }
+    public DbSet<MaterialQuestion> MaterialQuestions { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -35,8 +36,15 @@ public class AppDbContext : DbContext
         // Material → Course relationship
         modelBuilder.Entity<Material>()
             .HasOne(m => m.Course)
-            .WithMany()
+            .WithMany(c => c.Materials)
             .HasForeignKey(m => m.CourseId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // MaterialQuestion → Material relationship (cascade delete)
+        modelBuilder.Entity<MaterialQuestion>()
+            .HasOne(mq => mq.Material)
+            .WithMany()
+            .HasForeignKey(mq => mq.MaterialId)
             .OnDelete(DeleteBehavior.Cascade);
 
         // LessonQuestion → Lesson relationship (cascade delete)

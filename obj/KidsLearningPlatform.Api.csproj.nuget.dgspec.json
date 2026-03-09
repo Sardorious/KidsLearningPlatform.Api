@@ -43,6 +43,10 @@
         "net8.0": {
           "targetAlias": "net8.0",
           "dependencies": {
+            "Azure.AI.OpenAI": {
+              "target": "Package",
+              "version": "[2.1.0, )"
+            },
             "BCrypt.Net-Next": {
               "target": "Package",
               "version": "[4.1.0, )"
@@ -71,9 +75,17 @@
               "target": "Package",
               "version": "[8.0.4, )"
             },
+            "OpenAI": {
+              "target": "Package",
+              "version": "[2.9.1, )"
+            },
             "Swashbuckle.AspNetCore": {
               "target": "Package",
               "version": "[6.6.2, )"
+            },
+            "UglyToad.PdfPig": {
+              "target": "Package",
+              "version": "[1.7.0-custom-5, )"
             }
           },
           "imports": [

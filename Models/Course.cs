@@ -14,4 +14,5 @@ public class Course
     public string ImageUrl { get; set; }
     
     public ICollection<Lesson> Lessons { get; set; } = new List<Lesson>();
+    public ICollection<Material> Materials { get; set; } = new List<Material>();
 }

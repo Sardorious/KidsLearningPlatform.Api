@@ -12,12 +12,12 @@ public static class UserEndpoints
         var group = routes.MapGroup("/api/users").WithTags("Users").RequireAuthorization();
         var progressGroup = routes.MapGroup("/api/progress").WithTags("Progress").RequireAuthorization();
 
-        // Get All Users (Admin)
+        // Get All Users (Admin/Teacher)
         group.MapGet("/", async (IUserService userService, ClaimsPrincipal user) =>
         {
             var users = await userService.GetAllUsersAsync();
             return Results.Ok(users);
-        }).RequireAuthorization(p => p.RequireRole("ADMIN"));
+        }).RequireAuthorization(p => p.RequireRole("ADMIN", "TEACHER", "Admin", "Teacher"));
 
         // Create User (Admin)
         group.MapPost("/", async (RegisterRequest request, IAuthService authService) =>

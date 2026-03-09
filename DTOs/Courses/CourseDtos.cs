@@ -1,3 +1,5 @@
+using KidsLearningPlatform.Api.DTOs.Admin;
+
 namespace KidsLearningPlatform.Api.DTOs.Courses;
 
 public class CourseDto
@@ -9,6 +11,7 @@ public class CourseDto
     public int TeacherId { get; set; }
     public decimal Price { get; set; }
     public string ImageUrl { get; set; } = string.Empty;
+    public List<MaterialDto> Materials { get; set; } = new();
 }
 
 public class CreateCourseRequest

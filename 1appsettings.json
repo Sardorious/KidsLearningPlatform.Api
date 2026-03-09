@@ -5,8 +5,9 @@
       "Microsoft.AspNetCore": "Warning"
     }
   },
+  "AllowedHosts": "*",
   "ConnectionStrings": {
-    "DefaultConnection": "Host=localhost;Port=5432;Database=kidslearning_dev;Username=postgres;Password=postgres;SSL Mode=Disable"
+    "DefaultConnection": "Host=pg-4c1da7c-kidslearningplatform.d.aivencloud.com;Port=10129;Database=defaultdb;Username=avnadmin;Password=AVNS_wJlR2DNE7-_KVv_766r;SSL Mode=Require;Trust Server Certificate=true"
   },
   "Jwt": {
     "Secret": "super_secret_key_that_should_be_long_enough_for_hmac_sha256"

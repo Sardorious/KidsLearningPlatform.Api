@@ -5,12 +5,37 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
+using System.Text.Json.Serialization;
+
+using Microsoft.AspNetCore.Http.Features;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Configure Kestrel to allow large file uploads (up to 200MB)
+builder.WebHost.ConfigureKestrel(options =>
+{
+    options.Limits.MaxRequestBodySize = 209715200; // 200MB
+});
+
+// Configure FormOptions to allow large multipart bodies
+builder.Services.Configure<FormOptions>(options =>
+{
+    options.MultipartBodyLengthLimit = 209715200; // 200MB
+});
 
 // Add DbContext
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+// Configure JSON options to handle Enums as strings
+builder.Services.ConfigureHttpJsonOptions(options =>
+{
+    options.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
+});
+builder.Services.Configure<Microsoft.AspNetCore.Mvc.JsonOptions>(options =>
+{
+    options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+});
 
 // Add Services
 builder.Services.AddScoped<IAuthService, AuthService>();
@@ -20,7 +45,7 @@ builder.Services.AddScoped<ILessonQuestionService, LessonQuestionService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IClassService, ClassService>();
 builder.Services.AddScoped<IMaterialService, MaterialService>();
-
+builder.Services.AddScoped<IAiService, AiService>();
 
 var jwtSecret = builder.Configuration["Jwt:Secret"] ?? "super_secret_key_that_should_be_long_enough_for_hmac_sha256";
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)

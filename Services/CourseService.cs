@@ -4,11 +4,13 @@ using Microsoft.EntityFrameworkCore;
 using KidsLearningPlatform.Api.Data;
 using KidsLearningPlatform.Api.Models;
 using KidsLearningPlatform.Api.DTOs.Courses;
+using KidsLearningPlatform.Api.DTOs.Admin;
 
 public interface ICourseService
 {
     Task<IEnumerable<CourseDto>> GetAllCoursesAsync();
     Task<CourseDetailsDto?> GetCourseByIdAsync(int id);
+    Task<IEnumerable<CourseDto>> GetCoursesByTeacherIdAsync(int teacherId);
     Task<CourseDto> CreateCourseAsync(CreateCourseRequest request, int teacherId);
     Task<CourseDto?> UpdateCourseAsync(int id, UpdateCourseRequest request);
     Task<bool> DeleteCourseAsync(int id);
@@ -26,6 +28,7 @@ public class CourseService : ICourseService
     public async Task<IEnumerable<CourseDto>> GetAllCoursesAsync()
     {
         return await _context.Courses
+            .Include(c => c.Materials)
             .Select(c => new CourseDto
             {
                 Id = c.Id,
@@ -34,7 +37,45 @@ public class CourseService : ICourseService
                 Category = c.Category,
                 TeacherId = c.TeacherId,
                 Price = c.Price,
-                ImageUrl = c.ImageUrl
+                ImageUrl = c.ImageUrl,
+                Materials = c.Materials.Select(m => new MaterialDto
+                {
+                    Id = m.Id,
+                    Name = m.Name,
+                    Type = m.Type,
+                    CourseId = m.CourseId,
+                    Url = m.Url,
+                    Size = m.Size,
+                    UploadDate = m.UploadDate
+                }).ToList()
+            })
+            .ToListAsync();
+    }
+
+    public async Task<IEnumerable<CourseDto>> GetCoursesByTeacherIdAsync(int teacherId)
+    {
+        return await _context.Courses
+            .Where(c => c.TeacherId == teacherId)
+            .Include(c => c.Materials)
+            .Select(c => new CourseDto
+            {
+                Id = c.Id,
+                Title = c.Title,
+                Description = c.Description,
+                Category = c.Category,
+                TeacherId = c.TeacherId,
+                Price = c.Price,
+                ImageUrl = c.ImageUrl,
+                Materials = c.Materials.Select(m => new MaterialDto
+                {
+                    Id = m.Id,
+                    Name = m.Name,
+                    Type = m.Type,
+                    CourseId = m.CourseId,
+                    Url = m.Url,
+                    Size = m.Size,
+                    UploadDate = m.UploadDate
+                }).ToList()
             })
             .ToListAsync();
     }
@@ -87,13 +128,16 @@ public class CourseService : ICourseService
             Category = course.Category,
             TeacherId = course.TeacherId,
             Price = course.Price,
-            ImageUrl = course.ImageUrl
+            ImageUrl = course.ImageUrl,
+            Materials = new List<MaterialDto>()
         };
     }
 
     public async Task<CourseDto?> UpdateCourseAsync(int id, UpdateCourseRequest request)
     {
-        var course = await _context.Courses.FirstOrDefaultAsync(c => c.Id == id);
+        var course = await _context.Courses
+            .Include(c => c.Materials)
+            .FirstOrDefaultAsync(c => c.Id == id);
         if (course == null) return null;
 
         course.Title = request.Title;
@@ -112,7 +156,17 @@ public class CourseService : ICourseService
             Category = course.Category,
             TeacherId = course.TeacherId,
             Price = course.Price,
-            ImageUrl = course.ImageUrl
+            ImageUrl = course.ImageUrl,
+            Materials = course.Materials.Select(m => new MaterialDto
+            {
+                Id = m.Id,
+                Name = m.Name,
+                Type = m.Type,
+                CourseId = m.CourseId,
+                Url = m.Url,
+                Size = m.Size,
+                UploadDate = m.UploadDate
+            }).ToList()
         };
     }
 
