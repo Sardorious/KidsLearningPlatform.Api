@@ -9,3 +9,8 @@ obj/
 appsettings.Development.json
 wwwroot/uploads/*
 !wwwroot/uploads/.gitkeep
+
+wwwroot/ffmpeg/
+wwwroot/ffmpeg_temp/
+wwwroot/ffmpeg.zip
+wwwroot/ffmpeg_new.zip

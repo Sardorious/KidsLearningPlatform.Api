@@ -1,3 +1,0 @@
-﻿<Project>
-  <Import Project="..\build\KidsLearningPlatform.Api.props" />
-</Project>
