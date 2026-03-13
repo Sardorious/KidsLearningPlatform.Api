@@ -47,7 +47,9 @@ builder.Services.AddScoped<IClassService, ClassService>();
 builder.Services.AddScoped<IMaterialService, MaterialService>();
 builder.Services.AddScoped<IAiService, AiService>();
 
-var jwtSecret = builder.Configuration["Jwt:Secret"] ?? "super_secret_key_that_should_be_long_enough_for_hmac_sha256";
+var jwtSecret = Environment.GetEnvironmentVariable("JWT_SECRET")
+    ?? builder.Configuration["Jwt:Secret"]
+    ?? "super_secret_key_that_should_be_long_enough_for_hmac_sha256";
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
@@ -121,6 +123,93 @@ app.MapUserEndpoints();
 app.MapFileEndpoints();
 app.MapClassEndpoints();
 app.MapMaterialEndpoints();
+app.MapEnrollmentEndpoints();
+app.MapAnnouncementEndpoints();
+
+// ─── AI Endpoints ─────────────────────────────────────────────────────────
+
+// POST /ai/tutor-chat — AI tutor for students
+app.MapPost("/ai/tutor-chat", async (
+    HttpContext ctx,
+    IAiService aiService) =>
+{
+    var body = await ctx.Request.ReadFromJsonAsync<TutorChatRequest>();
+    if (body == null || string.IsNullOrWhiteSpace(body.Message))
+        return Results.BadRequest("Message is required.");
+    var result = await aiService.ChatWithTutorAsync(body.Subject ?? "General", body.Message, body.Grade ?? "Grade 3");
+    return Results.Ok(result);
+}).RequireAuthorization().WithTags("AI");
+
+// POST /ai/check-writing — writing checker for teachers
+app.MapPost("/ai/check-writing", async (
+    HttpContext ctx,
+    IAiService aiService) =>
+{
+    var body = await ctx.Request.ReadFromJsonAsync<WritingCheckRequest>();
+    if (body == null || string.IsNullOrWhiteSpace(body.Text))
+        return Results.BadRequest("Text is required.");
+    var result = await aiService.CheckWritingAsync(body.Text, body.Grade ?? "Grade 3");
+    return Results.Ok(result);
+}).RequireAuthorization().WithTags("AI");
+
+// POST /ai/check-speaking — speaking/audio checker for teachers
+app.MapPost("/ai/check-speaking", async (
+    HttpContext ctx,
+    IAiService aiService) =>
+{
+    if (!ctx.Request.HasFormContentType)
+        return Results.BadRequest("Expected multipart form data.");
+    var form = await ctx.Request.ReadFormAsync();
+    var file = form.Files.GetFile("audio");
+    if (file == null)
+        return Results.BadRequest("Audio file named 'audio' is required.");
+    var result = await aiService.CheckSpeakingAsync(file);
+    return Results.Ok(result);
+}).RequireAuthorization().WithTags("AI")
+  .DisableAntiforgery();
+
+// POST /ai/lesson-plan — lesson plan generator for teachers
+app.MapPost("/ai/lesson-plan", async (
+    HttpContext ctx,
+    IAiService aiService) =>
+{
+    var body = await ctx.Request.ReadFromJsonAsync<LessonPlanRequest>();
+    if (body == null || string.IsNullOrWhiteSpace(body.Topic))
+        return Results.BadRequest("Topic is required.");
+    var result = await aiService.GenerateLessonPlanAsync(body.Topic, body.AgeGroup, body.Level ?? "Beginner");
+    return Results.Ok(result);
+}).RequireAuthorization().WithTags("AI");
+
+// GET /ai/progress-report — AI progress report for parents/teachers
+app.MapGet("/ai/progress-report", async (
+    HttpContext ctx,
+    KidsLearningPlatform.Api.Data.AppDbContext db,
+    IAiService aiService) =>
+{
+    var userIdClaim = ctx.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+    if (!int.TryParse(userIdClaim, out int userId))
+        return Results.Unauthorized();
+
+    var user = await db.Users.FindAsync(userId);
+    if (user == null) return Results.NotFound();
+
+    var completedLessons = await db.Progresses.CountAsync(p => p.StudentId == userId && p.IsCompleted);
+    var recentActivity = await db.Progresses
+        .Where(p => p.StudentId == userId)
+        .OrderByDescending(p => p.CompletedAt)
+        .Take(5)
+        .Select(p => p.Lesson != null ? p.Lesson.Title : "Lesson")
+        .ToListAsync();
+
+    var result = await aiService.GenerateProgressReportAsync(
+        user.Name ?? "Student",
+        completedLessons,
+        user.XP,
+        user.Coins,
+        string.Join(", ", recentActivity)
+    );
+    return Results.Ok(result);
+}).RequireAuthorization().WithTags("AI");
 
 
 var summaries = new[]
@@ -151,3 +240,8 @@ record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
 {
     public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
 }
+
+// ─── AI Request DTOs ─────────────────────────────────────────────────────────
+record TutorChatRequest(string Message, string? Subject, string? Grade);
+record WritingCheckRequest(string Text, string? Grade);
+record LessonPlanRequest(string Topic, int AgeGroup, string? Level);

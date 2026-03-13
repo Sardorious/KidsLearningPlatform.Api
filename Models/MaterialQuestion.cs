@@ -10,6 +10,6 @@ public class MaterialQuestion
     public string QuestionText { get; set; } = string.Empty;
     public string OptionsJson { get; set; } = "[]"; // JSON array of option strings (4 choices)
     public string CorrectAnswer { get; set; } = string.Empty;
-    
     public int OrderIndex { get; set; }
+    public string QuestionType { get; set; } = "MultipleChoice"; // MultipleChoice, TrueFalse
 }

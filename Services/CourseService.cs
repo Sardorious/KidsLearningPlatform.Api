@@ -8,7 +8,7 @@ using KidsLearningPlatform.Api.DTOs.Admin;
 
 public interface ICourseService
 {
-    Task<IEnumerable<CourseDto>> GetAllCoursesAsync();
+    Task<IEnumerable<CourseDto>> GetAllCoursesAsync(string? search = null, string? category = null);
     Task<CourseDetailsDto?> GetCourseByIdAsync(int id);
     Task<IEnumerable<CourseDto>> GetCoursesByTeacherIdAsync(int teacherId);
     Task<CourseDto> CreateCourseAsync(CreateCourseRequest request, int teacherId);
@@ -25,31 +25,36 @@ public class CourseService : ICourseService
         _context = context;
     }
 
-    public async Task<IEnumerable<CourseDto>> GetAllCoursesAsync()
+    public async Task<IEnumerable<CourseDto>> GetAllCoursesAsync(string? search = null, string? category = null)
     {
-        return await _context.Courses
-            .Include(c => c.Materials)
-            .Select(c => new CourseDto
+        var query = _context.Courses.Include(c => c.Materials).AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(search))
+            query = query.Where(c => c.Title.ToLower().Contains(search.ToLower()) || c.Description.ToLower().Contains(search.ToLower()));
+
+        if (!string.IsNullOrWhiteSpace(category))
+            query = query.Where(c => c.Category.ToLower() == category.ToLower());
+
+        return await query.Select(c => new CourseDto
+        {
+            Id = c.Id,
+            Title = c.Title,
+            Description = c.Description,
+            Category = c.Category,
+            TeacherId = c.TeacherId,
+            Price = c.Price,
+            ImageUrl = c.ImageUrl,
+            Materials = c.Materials.Select(m => new MaterialDto
             {
-                Id = c.Id,
-                Title = c.Title,
-                Description = c.Description,
-                Category = c.Category,
-                TeacherId = c.TeacherId,
-                Price = c.Price,
-                ImageUrl = c.ImageUrl,
-                Materials = c.Materials.Select(m => new MaterialDto
-                {
-                    Id = m.Id,
-                    Name = m.Name,
-                    Type = m.Type,
-                    CourseId = m.CourseId,
-                    Url = m.Url,
-                    Size = m.Size,
-                    UploadDate = m.UploadDate
-                }).ToList()
-            })
-            .ToListAsync();
+                Id = m.Id,
+                Name = m.Name,
+                Type = m.Type,
+                CourseId = m.CourseId,
+                Url = m.Url,
+                Size = m.Size,
+                UploadDate = m.UploadDate
+            }).ToList()
+        }).ToListAsync();
     }
 
     public async Task<IEnumerable<CourseDto>> GetCoursesByTeacherIdAsync(int teacherId)

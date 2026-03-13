@@ -12,10 +12,10 @@ public static class CourseEndpoints
         var group = routes.MapGroup("/api/courses").WithTags("Courses");
         var adminGroup = routes.MapGroup("/api/admin/courses").WithTags("Admin Courses").RequireAuthorization(policy => policy.RequireRole("ADMIN", "TEACHER"));
 
-        // Public
-        group.MapGet("/", async (ICourseService courseService) =>
+        // Public - supports optional search and category filter
+        group.MapGet("/", async (string? search, string? category, ICourseService courseService) =>
         {
-            return Results.Ok(await courseService.GetAllCoursesAsync());
+            return Results.Ok(await courseService.GetAllCoursesAsync(search, category));
         });
 
         // Requires Auth to see full details and lessons

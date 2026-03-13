@@ -9,4 +9,5 @@ public class LessonQuestion
     public string OptionsJson { get; set; } = "[]"; // JSON array of option strings
     public string CorrectAnswer { get; set; } = string.Empty;
     public int OrderIndex { get; set; }
+    public string QuestionType { get; set; } = "MultipleChoice"; // MultipleChoice, TrueFalse
 }

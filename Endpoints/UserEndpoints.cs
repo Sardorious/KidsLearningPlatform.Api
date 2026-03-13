@@ -38,6 +38,32 @@ public static class UserEndpoints
             return Results.Ok(profile);
         });
 
+        // My Achievements / Badges
+        group.MapGet("/my-badges", async (IUserService userService, ClaimsPrincipal user) =>
+        {
+            var userIdStr = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (!int.TryParse(userIdStr, out int userId)) return Results.Unauthorized();
+            var badges = await userService.GetUserAchievementsAsync(userId);
+            return Results.Ok(badges);
+        });
+
+        // Child Progress (for parents)
+        group.MapGet("/child-progress", async (IUserService userService, ClaimsPrincipal user) =>
+        {
+            var userIdStr = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (!int.TryParse(userIdStr, out int userId)) return Results.Unauthorized();
+            var progress = await userService.GetChildProgressAsync(userId);
+            if (progress == null) return Results.NotFound("No child linked to this account.");
+            return Results.Ok(progress);
+        }).RequireAuthorization(p => p.RequireRole("PARENT"));
+
+        // Leaderboard (Top 10 students by XP)
+        routes.MapGet("/api/leaderboard", async (IUserService userService) =>
+        {
+            var leaderboard = await userService.GetLeaderboardAsync();
+            return Results.Ok(leaderboard);
+        }).RequireAuthorization().WithTags("Users");
+
         // User Progress
         progressGroup.MapGet("/", async (int? courseId, IUserService userService, ClaimsPrincipal user) =>
         {
@@ -46,6 +72,16 @@ public static class UserEndpoints
 
             var progressList = await userService.GetUserProgressAsync(userId, courseId);
             return Results.Ok(progressList);
+        });
+
+        // Course Progress Summary
+        progressGroup.MapGet("/course/{courseId:int}/summary", async (int courseId, IUserService userService, ClaimsPrincipal user) =>
+        {
+            var userIdStr = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (!int.TryParse(userIdStr, out int userId)) return Results.Unauthorized();
+            var summary = await userService.GetCourseProgressSummaryAsync(userId, courseId);
+            if (summary == null) return Results.NotFound();
+            return Results.Ok(summary);
         });
 
         // Complete Lesson

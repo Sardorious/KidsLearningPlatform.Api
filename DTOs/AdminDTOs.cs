@@ -41,3 +41,9 @@ public class MaterialDto
     public string Size { get; set; }
     public DateTime UploadDate { get; set; }
 }
+
+public class AddStudentToClassRequest
+{
+    public int StudentId { get; set; }
+}
+

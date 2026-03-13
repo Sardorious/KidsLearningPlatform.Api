@@ -10,9 +10,20 @@ using System.ClientModel;
 
 namespace KidsLearningPlatform.Api.Services;
 
+public record TutorChatResponse(string Reply, string Subject);
+public record WritingCheckResponse(int GrammarScore, int VocabularyScore, int ClarityScore, string ToneAnalysis, string Feedback, string CorrectedText);
+public record SpeakingCheckResponse(string Transcription, int FluencyScore, int GrammarScore, int PronunciationScore, string Feedback);
+public record LessonPlanResponse(string Topic, int AgeGroup, string Objectives, string WarmUp, string MainActivity, string Assessment, string Homework, string TeacherNotes);
+public record ProgressReportResponse(string Summary, string Strengths, string AreasToImprove, string Recommendations);
+
 public interface IAiService
 {
     Task<List<MaterialQuestionDto>> GenerateQuestionsAsync(Material material, int count);
+    Task<TutorChatResponse> ChatWithTutorAsync(string subject, string message, string grade);
+    Task<WritingCheckResponse> CheckWritingAsync(string text, string grade);
+    Task<SpeakingCheckResponse> CheckSpeakingAsync(IFormFile audioFile);
+    Task<LessonPlanResponse> GenerateLessonPlanAsync(string topic, int ageGroup, string level);
+    Task<ProgressReportResponse> GenerateProgressReportAsync(string studentName, int completedLessons, int xp, int coins, string recentActivity);
 }
 
 public class AiService : IAiService
@@ -393,5 +404,268 @@ Each object must have the following properties:
 
         correct = options.First(o => o.Contains("(Correct)"));
         return options;
+    }
+
+    // ─── NEW AI METHODS ───────────────────────────────────────────────────────
+
+    public async Task<TutorChatResponse> ChatWithTutorAsync(string subject, string message, string grade)
+    {
+        var apiKey = _configuration["OpenAI:ApiKey"] ?? Environment.GetEnvironmentVariable("OPENAI_API_KEY");
+        if (string.IsNullOrWhiteSpace(apiKey))
+            return new TutorChatResponse("I'm sorry, I'm not available right now. Please ask your teacher for help! 😊", subject);
+
+        try
+        {
+            var client = new OpenAI.OpenAIClient(apiKey);
+            var chatClient = client.GetChatClient("gpt-4o-mini");
+
+            string systemPrompt = $@"You are Zappy 🤖, a friendly and encouraging AI tutor for kids.
+You are helping a student in {grade ?? "elementary school"} with {subject ?? "their studies"}.
+
+Rules:
+- Use simple, fun, age-appropriate language for a {grade ?? "young"} student
+- Keep answers SHORT (max 4 sentences) and easy to understand
+- Use emojis occasionally to make it fun
+- If the student seems confused, break it down step by step
+- Never give the full answer to a homework problem — give hints instead
+- Always be encouraging: use phrases like 'Great question!', 'You're doing amazing!', 'Let's figure this out together!'
+- If asked about something inappropriate or off-topic, kindly redirect back to studying";
+
+            var messages = new List<ChatMessage>
+            {
+                new SystemChatMessage(systemPrompt),
+                new UserChatMessage(message)
+            };
+
+            var response = await chatClient.CompleteChatAsync(messages);
+            var reply = response.Value.Content[0].Text?.Trim() ?? "Hmm, I'm thinking... Try asking me again! 🤔";
+            return new TutorChatResponse(reply, subject ?? "General");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "AI Tutor chat failed");
+            return new TutorChatResponse("Oops! I had a little glitch 🔧. Please try again in a moment!", subject ?? "General");
+        }
+    }
+
+    public async Task<WritingCheckResponse> CheckWritingAsync(string text, string grade)
+    {
+        var apiKey = _configuration["OpenAI:ApiKey"] ?? Environment.GetEnvironmentVariable("OPENAI_API_KEY");
+        if (string.IsNullOrWhiteSpace(apiKey))
+            return new WritingCheckResponse(0, 0, 0, "N/A", "AI is not configured. Please set the OpenAI API key.", text);
+
+        try
+        {
+            var client = new OpenAI.OpenAIClient(apiKey);
+            var chatClient = client.GetChatClient("gpt-4o-mini");
+
+            string systemPrompt = $@"You are an expert writing coach evaluating student writing for a {grade ?? "primary school"} level student.
+Analyze the provided text and return ONLY a valid JSON object with these fields:
+{{
+  ""grammarScore"": <integer 0-100>,
+  ""vocabularyScore"": <integer 0-100>,
+  ""clarityScore"": <integer 0-100>,
+  ""toneAnalysis"": ""<one sentence describing the tone and style>"",
+  ""feedback"": ""<2-4 actionable sentences of constructive feedback appropriate for the grade level>"",
+  ""correctedText"": ""<the original text with corrections applied, keeping the student's voice>""
+}}
+Do NOT wrap in markdown. Return ONLY the JSON.";
+
+            var messages = new List<ChatMessage>
+            {
+                new SystemChatMessage(systemPrompt),
+                new UserChatMessage(text)
+            };
+
+            var response = await chatClient.CompleteChatAsync(messages);
+            var rawJson = response.Value.Content[0].Text?.Trim() ?? "{}";
+            rawJson = rawJson.TrimStart('`').TrimEnd('`');
+            if (rawJson.StartsWith("json")) rawJson = rawJson.Substring(4);
+
+            using var doc = JsonDocument.Parse(rawJson);
+            var root = doc.RootElement;
+
+            return new WritingCheckResponse(
+                root.TryGetProperty("grammarScore", out var g) ? g.GetInt32() : 70,
+                root.TryGetProperty("vocabularyScore", out var v) ? v.GetInt32() : 70,
+                root.TryGetProperty("clarityScore", out var c) ? c.GetInt32() : 70,
+                root.TryGetProperty("toneAnalysis", out var t) ? t.GetString() ?? "" : "",
+                root.TryGetProperty("feedback", out var f) ? f.GetString() ?? "" : "",
+                root.TryGetProperty("correctedText", out var ct) ? ct.GetString() ?? text : text
+            );
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Writing check failed");
+            return new WritingCheckResponse(0, 0, 0, "Error", "Could not analyze writing at this time. Please try again.", text);
+        }
+    }
+
+    public async Task<SpeakingCheckResponse> CheckSpeakingAsync(IFormFile audioFile)
+    {
+        var apiKey = _configuration["OpenAI:ApiKey"] ?? Environment.GetEnvironmentVariable("OPENAI_API_KEY");
+        if (string.IsNullOrWhiteSpace(apiKey))
+            return new SpeakingCheckResponse("AI not configured.", 0, 0, 0, "Please set the OpenAI API key.");
+
+        try
+        {
+            var client = new OpenAI.OpenAIClient(apiKey);
+            var audioClient = client.GetAudioClient("whisper-1");
+            var chatClient = client.GetChatClient("gpt-4o-mini");
+
+            // Step 1: Transcribe 
+            using var stream = audioFile.OpenReadStream();
+            var transcriptionOpts = new AudioTranscriptionOptions { ResponseFormat = AudioTranscriptionFormat.Text };
+            var transcriptionResult = await audioClient.TranscribeAudioAsync(stream, audioFile.FileName, transcriptionOpts);
+            var transcription = transcriptionResult.Value.Text?.Trim() ?? "";
+
+            if (string.IsNullOrWhiteSpace(transcription))
+                return new SpeakingCheckResponse("", 0, 0, 0, "Could not detect speech in the audio. Please record again in a quiet environment.");
+
+            // Step 2: Evaluate with GPT
+            string systemPrompt = @"You are an expert speaking and pronunciation coach for language learners.
+Given a transcription of a student's spoken English, evaluate it and return ONLY a valid JSON object:
+{
+  ""fluencyScore"": <integer 0-100 measuring smoothness and natural flow>,
+  ""grammarScore"": <integer 0-100 measuring grammatical correctness>,
+  ""pronunciationScore"": <integer 0-100 estimated from text clarity and word choices>,
+  ""feedback"": ""<2-4 specific, encouraging sentences about what was good and what to improve>""
+}
+Do NOT wrap in markdown. Return ONLY the JSON.";
+
+            var evalMessages = new List<ChatMessage>
+            {
+                new SystemChatMessage(systemPrompt),
+                new UserChatMessage($"Student transcription: \"{transcription}\"")
+            };
+
+            var evalResponse = await chatClient.CompleteChatAsync(evalMessages);
+            var rawJson = evalResponse.Value.Content[0].Text?.Trim() ?? "{}";
+            rawJson = rawJson.TrimStart('`').TrimEnd('`');
+            if (rawJson.StartsWith("json")) rawJson = rawJson.Substring(4);
+
+            using var doc = JsonDocument.Parse(rawJson);
+            var root = doc.RootElement;
+
+            return new SpeakingCheckResponse(
+                transcription,
+                root.TryGetProperty("fluencyScore", out var fl) ? fl.GetInt32() : 70,
+                root.TryGetProperty("grammarScore", out var gr) ? gr.GetInt32() : 70,
+                root.TryGetProperty("pronunciationScore", out var pr) ? pr.GetInt32() : 70,
+                root.TryGetProperty("feedback", out var fb) ? fb.GetString() ?? "" : ""
+            );
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Speaking check failed");
+            return new SpeakingCheckResponse("", 0, 0, 0, "Could not evaluate speaking at this time.");
+        }
+    }
+
+    public async Task<LessonPlanResponse> GenerateLessonPlanAsync(string topic, int ageGroup, string level)
+    {
+        var apiKey = _configuration["OpenAI:ApiKey"] ?? Environment.GetEnvironmentVariable("OPENAI_API_KEY");
+        if (string.IsNullOrWhiteSpace(apiKey))
+            return new LessonPlanResponse(topic, ageGroup, "AI not configured.", "", "", "", "", "");
+
+        try
+        {
+            var client = new OpenAI.OpenAIClient(apiKey);
+            var chatClient = client.GetChatClient("gpt-4o-mini");
+
+            string systemPrompt = $@"You are an expert curriculum designer creating lesson plans for kids aged {ageGroup}.
+Create a complete lesson plan for the topic: '{topic}' at {level ?? "Beginner"} level.
+Return ONLY a valid JSON object:
+{{
+  ""objectives"": ""<2-3 clear learning objectives>"",
+  ""warmUp"": ""<5 min warm-up activity description>"",
+  ""mainActivity"": ""<15-20 min main lesson description with step-by-step instructions>"",
+  ""assessment"": ""<5 min assessment/check description>"",
+  ""homework"": ""<optional short homework idea>"",
+  ""teacherNotes"": ""<tips for the teacher, including differentiation ideas>""
+}}
+Do NOT wrap in markdown. Return ONLY the JSON.";
+
+            var messages = new List<ChatMessage>
+            {
+                new SystemChatMessage(systemPrompt),
+                new UserChatMessage($"Topic: {topic}, Age: {ageGroup}, Level: {level}")
+            };
+
+            var response = await chatClient.CompleteChatAsync(messages);
+            var rawJson = response.Value.Content[0].Text?.Trim() ?? "{}";
+            rawJson = rawJson.TrimStart('`').TrimEnd('`');
+            if (rawJson.StartsWith("json")) rawJson = rawJson.Substring(4);
+
+            using var doc = JsonDocument.Parse(rawJson);
+            var root = doc.RootElement;
+
+            return new LessonPlanResponse(
+                topic, ageGroup,
+                root.TryGetProperty("objectives", out var obj) ? obj.GetString() ?? "" : "",
+                root.TryGetProperty("warmUp", out var wu) ? wu.GetString() ?? "" : "",
+                root.TryGetProperty("mainActivity", out var ma) ? ma.GetString() ?? "" : "",
+                root.TryGetProperty("assessment", out var ass) ? ass.GetString() ?? "" : "",
+                root.TryGetProperty("homework", out var hw) ? hw.GetString() ?? "" : "",
+                root.TryGetProperty("teacherNotes", out var tn) ? tn.GetString() ?? "" : ""
+            );
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Lesson plan generation failed");
+            return new LessonPlanResponse(topic, ageGroup, "Could not generate lesson plan.", "", "", "", "", "");
+        }
+    }
+
+    public async Task<ProgressReportResponse> GenerateProgressReportAsync(string studentName, int completedLessons, int xp, int coins, string recentActivity)
+    {
+        var apiKey = _configuration["OpenAI:ApiKey"] ?? Environment.GetEnvironmentVariable("OPENAI_API_KEY");
+        if (string.IsNullOrWhiteSpace(apiKey))
+            return new ProgressReportResponse("AI not configured.", "", "", "");
+
+        try
+        {
+            var client = new OpenAI.OpenAIClient(apiKey);
+            var chatClient = client.GetChatClient("gpt-4o-mini");
+
+            string systemPrompt = @"You are a warm, encouraging education counselor writing progress reports for parents.
+Given a student's activity data, write a concise, positive progress report.
+Return ONLY a valid JSON object:
+{
+  ""summary"": ""<2-3 sentence overall summary of the student's progress>"",
+  ""strengths"": ""<1-2 specific strengths observed>"",
+  ""areasToImprove"": ""<1-2 gentle suggestions for improvement>"",
+  ""recommendations"": ""<2-3 specific actionable recommendations for parents to support learning at home>""
+}
+Do NOT wrap in markdown. Return ONLY the JSON.";
+
+            var dataPrompt = $"Student: {studentName}. Completed Lessons: {completedLessons}. XP earned: {xp}. Coins: {coins}. Recent activity: {recentActivity}";
+
+            var messages = new List<ChatMessage>
+            {
+                new SystemChatMessage(systemPrompt),
+                new UserChatMessage(dataPrompt)
+            };
+
+            var response = await chatClient.CompleteChatAsync(messages);
+            var rawJson = response.Value.Content[0].Text?.Trim() ?? "{}";
+            rawJson = rawJson.TrimStart('`').TrimEnd('`');
+            if (rawJson.StartsWith("json")) rawJson = rawJson.Substring(4);
+
+            using var doc = JsonDocument.Parse(rawJson);
+            var root = doc.RootElement;
+
+            return new ProgressReportResponse(
+                root.TryGetProperty("summary", out var s) ? s.GetString() ?? "" : "",
+                root.TryGetProperty("strengths", out var st) ? st.GetString() ?? "" : "",
+                root.TryGetProperty("areasToImprove", out var ai) ? ai.GetString() ?? "" : "",
+                root.TryGetProperty("recommendations", out var r) ? r.GetString() ?? "" : ""
+            );
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Progress report generation failed");
+            return new ProgressReportResponse("Could not generate report at this time.", "", "", "");
+        }
     }
 }

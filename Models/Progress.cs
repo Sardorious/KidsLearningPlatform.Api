@@ -12,5 +12,6 @@ public class Progress
 
     public bool IsCompleted { get; set; }
     public int Score { get; set; }
+    public int TimeSpentSeconds { get; set; } = 0;
     public DateTime? CompletedAt { get; set; }
 }

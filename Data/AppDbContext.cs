@@ -13,14 +13,19 @@ public class AppDbContext : DbContext
     public DbSet<LessonQuestion> LessonQuestions { get; set; }
     public DbSet<Progress> Progresses { get; set; }
     public DbSet<Class> Classes { get; set; }
+    public DbSet<ClassStudent> ClassStudents { get; set; }
     public DbSet<Material> Materials { get; set; }
     public DbSet<MaterialQuestion> MaterialQuestions { get; set; }
+    public DbSet<Enrollment> Enrollments { get; set; }
+    public DbSet<Announcement> Announcements { get; set; }
+    public DbSet<Achievement> Achievements { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
-        
-        // Setup relations
+
+        // ── Existing Relations ──────────────────────────────────────────────
+
         modelBuilder.Entity<Course>()
             .HasOne(c => c.Teacher)
             .WithMany(u => u.AuthoredCourses)
@@ -33,25 +38,74 @@ public class AppDbContext : DbContext
             .HasForeignKey(p => p.StudentId)
             .OnDelete(DeleteBehavior.Cascade);
 
-        // Material → Course relationship
         modelBuilder.Entity<Material>()
             .HasOne(m => m.Course)
             .WithMany(c => c.Materials)
             .HasForeignKey(m => m.CourseId)
             .OnDelete(DeleteBehavior.Cascade);
 
-        // MaterialQuestion → Material relationship (cascade delete)
         modelBuilder.Entity<MaterialQuestion>()
             .HasOne(mq => mq.Material)
             .WithMany()
             .HasForeignKey(mq => mq.MaterialId)
             .OnDelete(DeleteBehavior.Cascade);
 
-        // LessonQuestion → Lesson relationship (cascade delete)
         modelBuilder.Entity<LessonQuestion>()
             .HasOne(q => q.Lesson)
             .WithMany()
             .HasForeignKey(q => q.LessonId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // ── Enrollment ──────────────────────────────────────────────────────
+
+        modelBuilder.Entity<Enrollment>()
+            .HasOne(e => e.Student)
+            .WithMany()
+            .HasForeignKey(e => e.StudentId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<Enrollment>()
+            .HasOne(e => e.Course)
+            .WithMany()
+            .HasForeignKey(e => e.CourseId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // Prevent duplicate enrollments
+        modelBuilder.Entity<Enrollment>()
+            .HasIndex(e => new { e.StudentId, e.CourseId })
+            .IsUnique();
+
+        // ── ClassStudent (composite key) ─────────────────────────────────────
+
+        modelBuilder.Entity<ClassStudent>()
+            .HasKey(cs => new { cs.ClassId, cs.StudentId });
+
+        modelBuilder.Entity<ClassStudent>()
+            .HasOne(cs => cs.Class)
+            .WithMany()
+            .HasForeignKey(cs => cs.ClassId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<ClassStudent>()
+            .HasOne(cs => cs.Student)
+            .WithMany()
+            .HasForeignKey(cs => cs.StudentId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // ── Announcement ─────────────────────────────────────────────────────
+
+        modelBuilder.Entity<Announcement>()
+            .HasOne(a => a.Author)
+            .WithMany()
+            .HasForeignKey(a => a.AuthorId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // ── Achievement ──────────────────────────────────────────────────────
+
+        modelBuilder.Entity<Achievement>()
+            .HasOne(a => a.User)
+            .WithMany()
+            .HasForeignKey(a => a.UserId)
             .OnDelete(DeleteBehavior.Cascade);
     }
 }
