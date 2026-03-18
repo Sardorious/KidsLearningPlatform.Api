@@ -47,6 +47,9 @@ builder.Services.AddScoped<IClassService, ClassService>();
 builder.Services.AddScoped<IMaterialService, MaterialService>();
 builder.Services.AddScoped<IAiService, AiService>();
 
+// Add Memory Cache for caching AI responses
+builder.Services.AddMemoryCache();
+
 var jwtSecret = Environment.GetEnvironmentVariable("JWT_SECRET")
     ?? builder.Configuration["Jwt:Secret"]
     ?? "super_secret_key_that_should_be_long_enough_for_hmac_sha256";
@@ -136,8 +139,24 @@ app.MapPost("/ai/tutor-chat", async (
     var body = await ctx.Request.ReadFromJsonAsync<TutorChatRequest>();
     if (body == null || string.IsNullOrWhiteSpace(body.Message))
         return Results.BadRequest("Message is required.");
-    var result = await aiService.ChatWithTutorAsync(body.Subject ?? "General", body.Message, body.Grade ?? "Grade 3");
-    return Results.Ok(result);
+
+    ctx.Response.Headers.Append("Content-Type", "text/event-stream");
+    ctx.Response.Headers.Append("Cache-Control", "no-cache");
+    ctx.Response.Headers.Append("Connection", "keep-alive");
+
+    var stream = aiService.ChatWithTutorStreamAsync(body.Subject ?? "General", body.Message, body.Grade ?? "Grade 3");
+
+    await foreach (var chunk in stream)
+    {
+        var data = $"data: {chunk.Replace("\n", "\\n")}\n\n";
+        await ctx.Response.WriteAsync(data);
+        await ctx.Response.Body.FlushAsync();
+    }
+
+    await ctx.Response.WriteAsync("data: [DONE]\n\n");
+    await ctx.Response.Body.FlushAsync();
+    
+    return Results.Empty;
 }).RequireAuthorization().WithTags("AI");
 
 // POST /ai/check-writing — writing checker for teachers
@@ -145,12 +164,21 @@ app.MapPost("/ai/check-writing", async (
     HttpContext ctx,
     IAiService aiService) =>
 {
-    var body = await ctx.Request.ReadFromJsonAsync<WritingCheckRequest>();
-    if (body == null || string.IsNullOrWhiteSpace(body.Text))
-        return Results.BadRequest("Text is required.");
-    var result = await aiService.CheckWritingAsync(body.Text, body.Grade ?? "Grade 3");
+    if (!ctx.Request.HasFormContentType)
+        return Results.BadRequest("Expected multipart form data.");
+
+    var form = await ctx.Request.ReadFormAsync();
+    string? text = form["text"];
+    string grade = form["grade"].ToString() ?? "Grade 3";
+    var imageFile = form.Files.GetFile("image");
+
+    if (string.IsNullOrWhiteSpace(text) && imageFile == null)
+        return Results.BadRequest("Either text or an image is required.");
+
+    var result = await aiService.CheckWritingAsync(text, grade, imageFile);
     return Results.Ok(result);
-}).RequireAuthorization().WithTags("AI");
+}).RequireAuthorization().WithTags("AI")
+  .DisableAntiforgery();
 
 // POST /ai/check-speaking — speaking/audio checker for teachers
 app.MapPost("/ai/check-speaking", async (

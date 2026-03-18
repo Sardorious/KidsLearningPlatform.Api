@@ -7,6 +7,7 @@ using UglyToad.PdfPig;
 using OpenAI.Chat;
 using OpenAI.Audio;
 using System.ClientModel;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace KidsLearningPlatform.Api.Services;
 
@@ -19,8 +20,8 @@ public record ProgressReportResponse(string Summary, string Strengths, string Ar
 public interface IAiService
 {
     Task<List<MaterialQuestionDto>> GenerateQuestionsAsync(Material material, int count);
-    Task<TutorChatResponse> ChatWithTutorAsync(string subject, string message, string grade);
-    Task<WritingCheckResponse> CheckWritingAsync(string text, string grade);
+    IAsyncEnumerable<string> ChatWithTutorStreamAsync(string subject, string message, string grade);
+    Task<WritingCheckResponse> CheckWritingAsync(string? text, string grade, IFormFile? imageFile = null);
     Task<SpeakingCheckResponse> CheckSpeakingAsync(IFormFile audioFile);
     Task<LessonPlanResponse> GenerateLessonPlanAsync(string topic, int ageGroup, string level);
     Task<ProgressReportResponse> GenerateProgressReportAsync(string studentName, int completedLessons, int xp, int coins, string recentActivity);
@@ -31,13 +32,34 @@ public class AiService : IAiService
     private readonly IConfiguration _configuration;
     private readonly IWebHostEnvironment _env;
     private readonly ILogger<AiService> _logger;
+    private readonly IMemoryCache _cache;
 
-    public AiService(IConfiguration configuration, IWebHostEnvironment env, ILogger<AiService> logger)
+    public AiService(IConfiguration configuration, IWebHostEnvironment env, ILogger<AiService> logger, IMemoryCache cache)
     {
         _configuration = configuration;
         _env = env;
         _logger = logger;
+        _cache = cache;
     }
+
+    private async Task<ClientResult<ChatCompletion>> CallOpenAiWithRetryAsync(ChatClient client, IEnumerable<ChatMessage> messages, int maxRetries = 3)
+    {
+        for (int i = 0; i < maxRetries; i++)
+        {
+            try
+            {
+                return await client.CompleteChatAsync(messages);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "OpenAI API call failed on attempt {Attempt} of {MaxRetries}", i + 1, maxRetries);
+                if (i == maxRetries - 1) throw;
+                await Task.Delay(TimeSpan.FromSeconds(Math.Pow(2, i))); // Exponential backoff: 1s, 2s, 4s...
+            }
+        }
+        throw new InvalidOperationException("Failed to call OpenAI API after retries.");
+    }
+
 
     public async Task<List<MaterialQuestionDto>> GenerateQuestionsAsync(Material material, int count)
     {
@@ -408,18 +430,35 @@ Each object must have the following properties:
 
     // ─── NEW AI METHODS ───────────────────────────────────────────────────────
 
-    public async Task<TutorChatResponse> ChatWithTutorAsync(string subject, string message, string grade)
+    public async IAsyncEnumerable<string> ChatWithTutorStreamAsync(string subject, string message, string grade)
     {
         var apiKey = _configuration["OpenAI:ApiKey"] ?? Environment.GetEnvironmentVariable("OPENAI_API_KEY");
         if (string.IsNullOrWhiteSpace(apiKey))
-            return new TutorChatResponse("I'm sorry, I'm not available right now. Please ask your teacher for help! 😊", subject);
+        {
+            yield return "I'm sorry, I'm not available right now. Please ask your teacher for help! 😊";
+            yield break;
+        }
 
+        ChatClient chatClient = null!;
+        string? initError = null;
         try
         {
             var client = new OpenAI.OpenAIClient(apiKey);
-            var chatClient = client.GetChatClient("gpt-4o-mini");
+            chatClient = client.GetChatClient("gpt-4o-mini");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to initialize OpenAI client");
+            initError = "Oops! I had a little glitch 🔧. Please try again in a moment!";
+        }
 
-            string systemPrompt = $@"You are Zappy 🤖, a friendly and encouraging AI tutor for kids.
+        if (initError != null)
+        {
+            yield return initError;
+            yield break;
+        }
+
+        string systemPrompt = $@"You are Zappy 🤖, a friendly and encouraging AI tutor for kids.
 You are helping a student in {grade ?? "elementary school"} with {subject ?? "their studies"}.
 
 Rules:
@@ -431,24 +470,44 @@ Rules:
 - Always be encouraging: use phrases like 'Great question!', 'You're doing amazing!', 'Let's figure this out together!'
 - If asked about something inappropriate or off-topic, kindly redirect back to studying";
 
-            var messages = new List<ChatMessage>
-            {
-                new SystemChatMessage(systemPrompt),
-                new UserChatMessage(message)
-            };
+        var messages = new List<ChatMessage>
+        {
+            new SystemChatMessage(systemPrompt),
+            new UserChatMessage(message)
+        };
 
-            var response = await chatClient.CompleteChatAsync(messages);
-            var reply = response.Value.Content[0].Text?.Trim() ?? "Hmm, I'm thinking... Try asking me again! 🤔";
-            return new TutorChatResponse(reply, subject ?? "General");
+        AsyncCollectionResult<StreamingChatCompletionUpdate> responseStream = null!;
+        string? streamError = null;
+        try
+        {
+            responseStream = chatClient.CompleteChatStreamingAsync(messages);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "AI Tutor chat failed");
-            return new TutorChatResponse("Oops! I had a little glitch 🔧. Please try again in a moment!", subject ?? "General");
+             _logger.LogError(ex, "AI Tutor chat failed to start streaming");
+             streamError = "Oops! I couldn't connect to my brain. Please try again!";
+        }
+
+        if (streamError != null || responseStream == null)
+        {
+            yield return streamError ?? "Oops! I couldn't connect to my brain. Please try again!";
+            yield break;
+        }
+
+        await foreach (var update in responseStream)
+        {
+            foreach (var contentPart in update.ContentUpdate)
+            {
+                if (!string.IsNullOrEmpty(contentPart.Text))
+                {
+                    yield return contentPart.Text;
+                }
+            }
         }
     }
 
-    public async Task<WritingCheckResponse> CheckWritingAsync(string text, string grade)
+
+    public async Task<WritingCheckResponse> CheckWritingAsync(string? text, string grade, IFormFile? imageFile = null)
     {
         var apiKey = _configuration["OpenAI:ApiKey"] ?? Environment.GetEnvironmentVariable("OPENAI_API_KEY");
         if (string.IsNullOrWhiteSpace(apiKey))
@@ -471,13 +530,40 @@ Analyze the provided text and return ONLY a valid JSON object with these fields:
 }}
 Do NOT wrap in markdown. Return ONLY the JSON.";
 
+            // Build the multi-part user message
+            var contentParts = new List<ChatMessageContentPart>();
+            if (!string.IsNullOrWhiteSpace(text))
+            {
+                contentParts.Add(ChatMessageContentPart.CreateTextPart(text));
+            }
+            if (imageFile != null && imageFile.Length > 0)
+            {
+                using var memoryStream = new MemoryStream();
+                await imageFile.CopyToAsync(memoryStream);
+                var imageBytes = memoryStream.ToArray();
+                var imageBase64 = Convert.ToBase64String(imageBytes);
+                var mimeType = imageFile.ContentType ?? "image/jpeg";
+                var dataUri = new Uri($"data:{mimeType};base64,{imageBase64}");
+                contentParts.Add(ChatMessageContentPart.CreateImagePart(dataUri, ChatImageDetailLevel.High));
+                
+                if (string.IsNullOrWhiteSpace(text))
+                {
+                   contentParts.Add(ChatMessageContentPart.CreateTextPart("Please evaluate the handwriting in this attached image."));
+                }
+            }
+
+            if (contentParts.Count == 0)
+            {
+                 return new WritingCheckResponse(0, 0, 0, "Error", "No text or image provided to analyze.", text ?? "");
+            }
+
             var messages = new List<ChatMessage>
             {
                 new SystemChatMessage(systemPrompt),
-                new UserChatMessage(text)
+                new UserChatMessage(contentParts)
             };
 
-            var response = await chatClient.CompleteChatAsync(messages);
+            var response = await CallOpenAiWithRetryAsync(chatClient, messages);
             var rawJson = response.Value.Content[0].Text?.Trim() ?? "{}";
             rawJson = rawJson.TrimStart('`').TrimEnd('`');
             if (rawJson.StartsWith("json")) rawJson = rawJson.Substring(4);
@@ -491,13 +577,13 @@ Do NOT wrap in markdown. Return ONLY the JSON.";
                 root.TryGetProperty("clarityScore", out var c) ? c.GetInt32() : 70,
                 root.TryGetProperty("toneAnalysis", out var t) ? t.GetString() ?? "" : "",
                 root.TryGetProperty("feedback", out var f) ? f.GetString() ?? "" : "",
-                root.TryGetProperty("correctedText", out var ct) ? ct.GetString() ?? text : text
+                root.TryGetProperty("correctedText", out var ct) ? ct.GetString() ?? text ?? "" : text ?? ""
             );
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Writing check failed");
-            return new WritingCheckResponse(0, 0, 0, "Error", "Could not analyze writing at this time. Please try again.", text);
+            return new WritingCheckResponse(0, 0, 0, "Error", "Could not analyze writing at this time. Please try again.", text ?? "");
         }
     }
 
@@ -539,7 +625,7 @@ Do NOT wrap in markdown. Return ONLY the JSON.";
                 new UserChatMessage($"Student transcription: \"{transcription}\"")
             };
 
-            var evalResponse = await chatClient.CompleteChatAsync(evalMessages);
+            var evalResponse = await CallOpenAiWithRetryAsync(chatClient, evalMessages);
             var rawJson = evalResponse.Value.Content[0].Text?.Trim() ?? "{}";
             rawJson = rawJson.TrimStart('`').TrimEnd('`');
             if (rawJson.StartsWith("json")) rawJson = rawJson.Substring(4);
@@ -564,6 +650,13 @@ Do NOT wrap in markdown. Return ONLY the JSON.";
 
     public async Task<LessonPlanResponse> GenerateLessonPlanAsync(string topic, int ageGroup, string level)
     {
+        string cacheKey = $"LessonPlan_{topic}_{ageGroup}_{level}";
+        if (_cache.TryGetValue(cacheKey, out LessonPlanResponse? cachedPlan) && cachedPlan != null)
+        {
+            _logger.LogInformation("Returning cached lesson plan for topic {Topic}", topic);
+            return cachedPlan;
+        }
+
         var apiKey = _configuration["OpenAI:ApiKey"] ?? Environment.GetEnvironmentVariable("OPENAI_API_KEY");
         if (string.IsNullOrWhiteSpace(apiKey))
             return new LessonPlanResponse(topic, ageGroup, "AI not configured.", "", "", "", "", "");
@@ -592,7 +685,7 @@ Do NOT wrap in markdown. Return ONLY the JSON.";
                 new UserChatMessage($"Topic: {topic}, Age: {ageGroup}, Level: {level}")
             };
 
-            var response = await chatClient.CompleteChatAsync(messages);
+            var response = await CallOpenAiWithRetryAsync(chatClient, messages);
             var rawJson = response.Value.Content[0].Text?.Trim() ?? "{}";
             rawJson = rawJson.TrimStart('`').TrimEnd('`');
             if (rawJson.StartsWith("json")) rawJson = rawJson.Substring(4);
@@ -600,7 +693,7 @@ Do NOT wrap in markdown. Return ONLY the JSON.";
             using var doc = JsonDocument.Parse(rawJson);
             var root = doc.RootElement;
 
-            return new LessonPlanResponse(
+            var plan = new LessonPlanResponse(
                 topic, ageGroup,
                 root.TryGetProperty("objectives", out var obj) ? obj.GetString() ?? "" : "",
                 root.TryGetProperty("warmUp", out var wu) ? wu.GetString() ?? "" : "",
@@ -609,6 +702,9 @@ Do NOT wrap in markdown. Return ONLY the JSON.";
                 root.TryGetProperty("homework", out var hw) ? hw.GetString() ?? "" : "",
                 root.TryGetProperty("teacherNotes", out var tn) ? tn.GetString() ?? "" : ""
             );
+
+            _cache.Set(cacheKey, plan, TimeSpan.FromHours(1)); // Cache for 1 hour
+            return plan;
         }
         catch (Exception ex)
         {
@@ -619,6 +715,13 @@ Do NOT wrap in markdown. Return ONLY the JSON.";
 
     public async Task<ProgressReportResponse> GenerateProgressReportAsync(string studentName, int completedLessons, int xp, int coins, string recentActivity)
     {
+        string cacheKey = $"ProgressReport_{studentName}_{completedLessons}_{xp}_{coins}_{recentActivity}";
+        if (_cache.TryGetValue(cacheKey, out ProgressReportResponse? cachedReport) && cachedReport != null)
+        {
+            _logger.LogInformation("Returning cached progress report for {Student}", studentName);
+            return cachedReport;
+        }
+
         var apiKey = _configuration["OpenAI:ApiKey"] ?? Environment.GetEnvironmentVariable("OPENAI_API_KEY");
         if (string.IsNullOrWhiteSpace(apiKey))
             return new ProgressReportResponse("AI not configured.", "", "", "");
@@ -647,7 +750,7 @@ Do NOT wrap in markdown. Return ONLY the JSON.";
                 new UserChatMessage(dataPrompt)
             };
 
-            var response = await chatClient.CompleteChatAsync(messages);
+            var response = await CallOpenAiWithRetryAsync(chatClient, messages);
             var rawJson = response.Value.Content[0].Text?.Trim() ?? "{}";
             rawJson = rawJson.TrimStart('`').TrimEnd('`');
             if (rawJson.StartsWith("json")) rawJson = rawJson.Substring(4);
@@ -655,12 +758,15 @@ Do NOT wrap in markdown. Return ONLY the JSON.";
             using var doc = JsonDocument.Parse(rawJson);
             var root = doc.RootElement;
 
-            return new ProgressReportResponse(
+            var report = new ProgressReportResponse(
                 root.TryGetProperty("summary", out var s) ? s.GetString() ?? "" : "",
                 root.TryGetProperty("strengths", out var st) ? st.GetString() ?? "" : "",
                 root.TryGetProperty("areasToImprove", out var ai) ? ai.GetString() ?? "" : "",
                 root.TryGetProperty("recommendations", out var r) ? r.GetString() ?? "" : ""
             );
+
+            _cache.Set(cacheKey, report, TimeSpan.FromMinutes(30)); // Cache report data for 30 minutes
+            return report;
         }
         catch (Exception ex)
         {
