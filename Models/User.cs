@@ -20,7 +20,9 @@ public class User
     public DateTime? OtpExpiryTime { get; set; }
     public UserRole Role { get; set; }
     public int? ParentId { get; set; } // For connecting a Student and a Parent
-    
+    public User? Parent { get; set; }
+    public ICollection<User> Children { get; set; } = new List<User>();
+
     public int XP { get; set; } = 0;
     public int Coins { get; set; } = 0;
     

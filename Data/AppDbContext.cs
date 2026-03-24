@@ -19,6 +19,8 @@ public class AppDbContext : DbContext
     public DbSet<Enrollment> Enrollments { get; set; }
     public DbSet<Announcement> Announcements { get; set; }
     public DbSet<Achievement> Achievements { get; set; }
+    public DbSet<Assignment> Assignments { get; set; }
+    public DbSet<AssignmentSubmission> AssignmentSubmissions { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -55,6 +57,39 @@ public class AppDbContext : DbContext
             .WithMany()
             .HasForeignKey(q => q.LessonId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        // ── Assignments ───────────────────────────────────────────────────────
+
+        modelBuilder.Entity<Assignment>()
+            .HasOne(a => a.Course)
+            .WithMany()
+            .HasForeignKey(a => a.CourseId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<AssignmentSubmission>()
+            .HasOne(s => s.Assignment)
+            .WithMany(a => a.Submissions)
+            .HasForeignKey(s => s.AssignmentId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<AssignmentSubmission>()
+            .HasOne(s => s.Student)
+            .WithMany()
+            .HasForeignKey(s => s.StudentId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // Prevent duplicate submissions
+        modelBuilder.Entity<AssignmentSubmission>()
+            .HasIndex(s => new { s.AssignmentId, s.StudentId })
+            .IsUnique();
+
+        // ── Parent-Child Relationship ─────────────────────────────────────────
+
+        modelBuilder.Entity<User>()
+            .HasOne(u => u.Parent)
+            .WithMany(u => u.Children)
+            .HasForeignKey(u => u.ParentId)
+            .OnDelete(DeleteBehavior.SetNull);
 
         // ── Enrollment ──────────────────────────────────────────────────────
 

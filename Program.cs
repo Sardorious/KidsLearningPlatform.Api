@@ -128,6 +128,7 @@ app.MapClassEndpoints();
 app.MapMaterialEndpoints();
 app.MapEnrollmentEndpoints();
 app.MapAnnouncementEndpoints();
+app.MapAssignmentEndpoints();
 
 // ─── AI Endpoints ─────────────────────────────────────────────────────────
 
@@ -210,6 +211,7 @@ app.MapPost("/ai/lesson-plan", async (
 
 // GET /ai/progress-report — AI progress report for parents/teachers
 app.MapGet("/ai/progress-report", async (
+    int? childId,
     HttpContext ctx,
     KidsLearningPlatform.Api.Data.AppDbContext db,
     IAiService aiService) =>
@@ -218,22 +220,31 @@ app.MapGet("/ai/progress-report", async (
     if (!int.TryParse(userIdClaim, out int userId))
         return Results.Unauthorized();
 
-    var user = await db.Users.FindAsync(userId);
-    if (user == null) return Results.NotFound();
+    // If a childId is provided, verify they belong to this parent
+    int targetStudentId = userId;
+    if (childId.HasValue)
+    {
+        var child = await db.Users.FirstOrDefaultAsync(u => u.Id == childId.Value && u.ParentId == userId);
+        if (child == null) return Results.Forbid();
+        targetStudentId = child.Id;
+    }
 
-    var completedLessons = await db.Progresses.CountAsync(p => p.StudentId == userId && p.IsCompleted);
+    var targetUser = await db.Users.FindAsync(targetStudentId);
+    if (targetUser == null) return Results.NotFound();
+
+    var completedLessons = await db.Progresses.CountAsync(p => p.StudentId == targetStudentId && p.IsCompleted);
     var recentActivity = await db.Progresses
-        .Where(p => p.StudentId == userId)
+        .Where(p => p.StudentId == targetStudentId)
         .OrderByDescending(p => p.CompletedAt)
         .Take(5)
         .Select(p => p.Lesson != null ? p.Lesson.Title : "Lesson")
         .ToListAsync();
 
     var result = await aiService.GenerateProgressReportAsync(
-        user.Name ?? "Student",
+        targetUser.Name ?? "Student",
         completedLessons,
-        user.XP,
-        user.Coins,
+        targetUser.XP,
+        targetUser.Coins,
         string.Join(", ", recentActivity)
     );
     return Results.Ok(result);

@@ -12,7 +12,7 @@ public interface IUserService
     Task<IEnumerable<ProgressDto>> GetUserProgressAsync(int userId, int? courseId = null);
     Task<CompleteLessonResponse?> CompleteLessonAsync(int userId, CompleteLessonRequest request);
     Task<IEnumerable<LeaderboardEntryDto>> GetLeaderboardAsync();
-    Task<ChildProgressDto?> GetChildProgressAsync(int parentId);
+    Task<ChildProgressDto?> GetChildProgressAsync(int parentId, int childId);
     Task<IEnumerable<AchievementDto>> GetUserAchievementsAsync(int userId);
     Task<CourseProgressSummaryDto?> GetCourseProgressSummaryAsync(int userId, int courseId);
 }
@@ -193,12 +193,12 @@ public class UserService : IUserService
             .ToListAsync();
     }
 
-    public async Task<ChildProgressDto?> GetChildProgressAsync(int parentId)
+    public async Task<ChildProgressDto?> GetChildProgressAsync(int parentId, int childId)
     {
         var parent = await _context.Users.FindAsync(parentId);
         if (parent == null || parent.Role != UserRole.PARENT) return null;
 
-        var child = await _context.Users.FirstOrDefaultAsync(u => u.ParentId == parentId);
+        var child = await _context.Users.FirstOrDefaultAsync(u => u.Id == childId && u.ParentId == parentId);
         if (child == null) return null;
 
         var progressList = await _context.Progresses

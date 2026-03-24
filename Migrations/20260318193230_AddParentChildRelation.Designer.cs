@@ -3,6 +3,7 @@ using System;
 using KidsLearningPlatform.Api.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace KidsLearningPlatform.Api.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260318193230_AddParentChildRelation")]
+    partial class AddParentChildRelation
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -77,78 +80,6 @@ namespace KidsLearningPlatform.Api.Migrations
                     b.HasIndex("AuthorId");
 
                     b.ToTable("Announcements");
-                });
-
-            modelBuilder.Entity("KidsLearningPlatform.Api.Models.Assignment", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<int>("CourseId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Description")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<DateTime?>("DueDate")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("MaxScore")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Title")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CourseId");
-
-                    b.ToTable("Assignments");
-                });
-
-            modelBuilder.Entity("KidsLearningPlatform.Api.Models.AssignmentSubmission", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<int>("AssignmentId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Feedback")
-                        .HasColumnType("text");
-
-                    b.Property<string>("FileUrl")
-                        .HasColumnType("text");
-
-                    b.Property<int?>("Score")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("StudentId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("SubmissionText")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<DateTime>("SubmittedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("StudentId");
-
-                    b.HasIndex("AssignmentId", "StudentId")
-                        .IsUnique();
-
-                    b.ToTable("AssignmentSubmissions");
                 });
 
             modelBuilder.Entity("KidsLearningPlatform.Api.Models.Class", b =>
@@ -536,36 +467,6 @@ namespace KidsLearningPlatform.Api.Migrations
                     b.Navigation("Author");
                 });
 
-            modelBuilder.Entity("KidsLearningPlatform.Api.Models.Assignment", b =>
-                {
-                    b.HasOne("KidsLearningPlatform.Api.Models.Course", "Course")
-                        .WithMany()
-                        .HasForeignKey("CourseId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Course");
-                });
-
-            modelBuilder.Entity("KidsLearningPlatform.Api.Models.AssignmentSubmission", b =>
-                {
-                    b.HasOne("KidsLearningPlatform.Api.Models.Assignment", "Assignment")
-                        .WithMany("Submissions")
-                        .HasForeignKey("AssignmentId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("KidsLearningPlatform.Api.Models.User", "Student")
-                        .WithMany()
-                        .HasForeignKey("StudentId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Assignment");
-
-                    b.Navigation("Student");
-                });
-
             modelBuilder.Entity("KidsLearningPlatform.Api.Models.Class", b =>
                 {
                     b.HasOne("KidsLearningPlatform.Api.Models.User", "Teacher")
@@ -697,11 +598,6 @@ namespace KidsLearningPlatform.Api.Migrations
                         .OnDelete(DeleteBehavior.SetNull);
 
                     b.Navigation("Parent");
-                });
-
-            modelBuilder.Entity("KidsLearningPlatform.Api.Models.Assignment", b =>
-                {
-                    b.Navigation("Submissions");
                 });
 
             modelBuilder.Entity("KidsLearningPlatform.Api.Models.Course", b =>

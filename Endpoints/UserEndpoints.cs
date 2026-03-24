@@ -48,13 +48,34 @@ public static class UserEndpoints
         });
 
         // Child Progress (for parents)
-        group.MapGet("/child-progress", async (IUserService userService, ClaimsPrincipal user) =>
+        group.MapGet("/{childId:int}/progress", async (int childId, IUserService userService, ClaimsPrincipal user) =>
         {
             var userIdStr = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             if (!int.TryParse(userIdStr, out int userId)) return Results.Unauthorized();
-            var progress = await userService.GetChildProgressAsync(userId);
-            if (progress == null) return Results.NotFound("No child linked to this account.");
+            var progress = await userService.GetChildProgressAsync(userId, childId);
+            if (progress == null) return Results.NotFound("No child linked to this account or invalid child ID.");
             return Results.Ok(progress);
+        }).RequireAuthorization(p => p.RequireRole("PARENT"));
+
+        // My Children (for parents)
+        group.MapGet("/my-children", async (KidsLearningPlatform.Api.Data.AppDbContext db, ClaimsPrincipal user) =>
+        {
+            var userIdStr = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (!int.TryParse(userIdStr, out int userId)) return Results.Unauthorized();
+            
+            var children = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.ToListAsync(
+                db.Users.Where(u => u.ParentId == userId)
+            );
+            
+            var result = children.Select(c => new 
+            {
+                c.Id,
+                c.Name,
+                c.XP,
+                c.Coins
+            });
+            
+            return Results.Ok(result);
         }).RequireAuthorization(p => p.RequireRole("PARENT"));
 
         // Leaderboard (Top 10 students by XP)
